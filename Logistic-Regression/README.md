@@ -1,4 +1,4 @@
-# Advance Machine Learning
+# Prediksi Diabetes dengan Logistic Regression
 
-## Dataset
-- https://www.kaggle.com/datasets/dionisiusdh/covid19-indonesian-twitter-sentiment
+- Mata Kuliah: Advance Machine Learning
+- Nama: Muhammad Ikhwan Fathulloh
