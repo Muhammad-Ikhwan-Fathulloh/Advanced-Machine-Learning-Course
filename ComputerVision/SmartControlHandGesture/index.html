@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hand Gesture Control with MQTT</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        margin: 0;
+      }
+
+      /* Video styling */
+      #video {
+        width: 640px;
+        height: 480px;
+        border: 2px solid #ccc;
+      }
+
+      /* Lamp container styles */
+      #lamp {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background-color: gray; /* Default to off (gray) */
+        margin-top: 20px; /* Adds space between the video and the lamp */
+      }
+
+      /* Gesture text styling */
+      #gesture {
+        font-size: 20px;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Kontrol Lampu dengan Gerakan Tangan</h1>
+    <video id="video" autoplay></video>
+    <p id="gesture">Menunggu Gerakan Tangan...</p>
+
+    <!-- Lamp representation using a circular div -->
+    <div id="lamp"></div>
+
+    <script>
+      // MQTT client setup
+      const client = mqtt.connect("wss://public:public@public.cloud.shiftr.io", {
+        clientId: "javascript",
+      });
+
+      client.on("connect", function () {
+        console.log("connected!");
+        client.subscribe("lampu/status"); // Subscribe to lamp status topic
+      });
+
+      client.on("message", function (topic, message) {
+        console.log(topic + ": " + message.toString());
+      });
+
+      // TensorFlow.js HandPose model
+      let video = document.getElementById("video");
+      let gestureText = document.getElementById("gesture");
+      let lampElement = document.getElementById("lamp");
+
+      // Access webcam
+      navigator.mediaDevices
+        .getUserMedia({ video: true })
+        .then((stream) => {
+          video.srcObject = stream;
+        });
+
+      // Initialize HandPose model
+      let handposeModel;
+      handpose.load().then((model) => {
+        handposeModel = model;
+        detectHands(); // Start detecting hands after the model is loaded
+      });
+
+      // Function to check if index finger is pointing
+      function isIndexFingerPointing(landmarks) {
+        const tip = landmarks[8]; // Tip position of the index finger
+        const base = landmarks[5]; // Base position of the hand
+        const distance = Math.abs(tip[1] - base[1]); // Vertical distance between the tip and base
+        return distance > 30; // If the distance is large enough, consider the finger pointed
+      }
+
+      // Detect hands and gestures
+      async function detectHands() {
+        if (handposeModel && video.readyState === 4) {
+          const predictions = await handposeModel.estimateHands(video);
+
+          if (predictions.length > 0) {
+            const landmarks = predictions[0].landmarks;
+
+            // If index finger is detected, turn on the lamp, otherwise turn it off
+            if (isIndexFingerPointing(landmarks)) {
+              gestureText.innerText = "Lampu Menyala";
+              sendMqttMessage(1); // Send 1 to turn the lamp on
+              lampElement.style.backgroundColor = "yellow"; // Change color to yellow for on state
+            } else {
+              gestureText.innerText = "Lampu Mati";
+              sendMqttMessage(0); // Send 0 to turn the lamp off
+              lampElement.style.backgroundColor = "gray"; // Change color to gray for off state
+            }
+          } else {
+            gestureText.innerText = "Tangan tidak terdeteksi";
+          }
+        }
+
+        requestAnimationFrame(detectHands); // Continuous detection
+      }
+
+      // Function to send MQTT message
+      function sendMqttMessage(state) {
+        client.publish("koalawan170845/lamp/control", String(state)); // Send 1 or 0 to the 'lampu/control' topic
+        console.log("Sent:", state);
+      }
+    </script>
+  </body>
+</html>
